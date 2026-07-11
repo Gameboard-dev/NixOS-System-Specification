@@ -1,0 +1,14 @@
+{
+  "files.associations": {
+  },
+  "files.exclude": {
+    "**/.git": false,
+  },
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    ".sops.example.yaml": ".sops.yaml",
+    ".secrets.example.json": ".secrets.json*",
+    ".secrets.json": ".secrets.encrypted.json*"
+  },
+
+}
