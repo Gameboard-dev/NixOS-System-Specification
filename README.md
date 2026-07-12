@@ -88,15 +88,6 @@ sudo -u forgejo env FORGEJO_WORK_DIR=/var/lib/forgejo \
   --email <email> --random-password
 ```
 
-```bash
-sudo -u forgejo env FORGEJO_WORK_DIR=/var/lib/forgejo \
-  forgejo admin user create \
-  --admin \
-  --username Walainski \
-  --email js5859133@gmail.com \
-  --password "h8B"
-```
-
 **Cloning over SSH** - git traffic rides the tunnel too, so clients need `cloudflared` installed locally and this in `~/.ssh/config`:
 
 ```ini

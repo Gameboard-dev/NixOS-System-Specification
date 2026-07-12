@@ -1,5 +1,5 @@
 # Forgejo git forge backed by PostgreSQL, accessed via a Cloudflare Tunnel
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 let
   httpPort = 3000;
@@ -26,7 +26,6 @@ in
     # Keys below map 1:1 onto Forgejo's app.ini and are documented
     # here: https://forgejo.org/docs/latest/admin/config-cheat-sheet/
     settings = {
-      
       server = {
         HTTP_ADDR = "127.0.0.1";
         HTTP_PORT = httpPort;
@@ -39,8 +38,13 @@ in
       security.MIN_PASSWORD_LENGTH = 16;
       
       service = {
-        # Whether accounts can be created by users without administrator access. 
-        DISABLE_REGISTRATION = true;
+        # Public signup is open, but protected twice over:
+        #  1. Cloudflare Turnstile CAPTCHA blocks bots (configured via the
+        #     turnstile-* secrets; see templates/forgejo/app.ini).
+        #  2. REGISTER_MANUAL_CONFIRM keeps every new account inactive until
+        #     an admin approves it (Site Administration -> Identity & Access).
+        DISABLE_REGISTRATION = false;
+        REGISTER_MANUAL_CONFIRM = true;
         # Whether to hide the email address in user profiles by default.
         DEFAULT_KEEP_EMAIL_PRIVATE = true;
       };
@@ -73,10 +77,13 @@ in
       SECRETS_FILE = secretsFile;
     };
     serviceConfig = {
-      # The tunnel.setup script is a single entry point with two subcommands, 
-      # and each of the two callers invokes a different one. The ExecStartPre command here executes briefly 
-      # before Forgejo starts, renders the FORGEJO__SERVER__* overrides from the secrets file into domain.env, and exits.
-      ExecStartPre = "+${pkgs.bash}/bin/bash ${./scripts/forgejo.tunnel.setup.sh} env ${domainEnvFile}";
+      # The tunnel.setup script is a single entry point with two subcommands,
+      # The ExecStartPre command here executes briefly before Forgejo starts, 
+      # renders the FORGEJO__SERVER__* overrides from the secrets file 
+      # into domain.env, and exits. mkBefore ensures our render is the FIRST ExecStartPre, 
+      # or the overrides arrive too late and Forgejo falls back to http://localhost:3000/.
+      # See the expected structure in: https://codeberg.org/forgejo/forgejo/src/branch/forgejo/contrib/environment-to-ini/environment-to-ini.go
+      ExecStartPre = lib.mkBefore [ "+${pkgs.bash}/bin/bash ${./scripts/forgejo.tunnel.setup.sh} env ${domainEnvFile}" ];
       EnvironmentFile = "-${domainEnvFile}";
     };
   };

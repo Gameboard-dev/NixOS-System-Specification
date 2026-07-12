@@ -30,25 +30,55 @@ read_secret() {
   "$YQ_BIN" -r "$1 // \"\"" "$2" 2>/dev/null || true
 }
 
+# Translates rendered ini on stdin into the FORGEJO__SECTION__KEY=value
+# env-var form Forgejo's environment-to-ini expects, tracking [section]
+# headers as it goes:
+# https://codeberg.org/forgejo/forgejo/src/branch/forgejo/contrib/environment-to-ini/environment-to-ini.go
+ini_to_env() {
+  local section="" line key value
+  while IFS= read -r line; do
+    case "$line" in
+      \[*\])
+        section="${line#[}"
+        section="${section%]}"
+        section="${section^^}"
+        ;;
+      [A-Z_]*\ =\ *)
+        key="${line%% = *}"
+        value="${line#* = }"
+        printf 'FORGEJO__%s__%s=%s\n' "$section" "$key" "$value"
+        ;;
+    esac
+  done
+}
+
 render_env() {
   local output_file="$1"
   local secrets_file="${SECRETS_FILE:-/run/secrets/secrets.yaml}"
-  local domain
+  local domain sitekey secret rendered
   domain=$(read_secret '.forgejo.domain' "$secrets_file")
+  sitekey=$(read_secret '.forgejo."turnstile-sitekey"' "$secrets_file")
+  secret=$(read_secret '.forgejo."turnstile-secret"' "$secrets_file")
 
   if [ -n "$domain" ]; then
+    rendered=$(
+      DOMAIN="$domain" TURNSTILE_SITEKEY="$sitekey" TURNSTILE_SECRET="$secret" \
+        "$ENVSUBST_BIN" '$DOMAIN $TURNSTILE_SITEKEY $TURNSTILE_SECRET' \
+        < "$APP_INI_TEMPLATE" | ini_to_env
+    )
 
-    # Render the ini template, then translate its "KEY = value" lines into
-    # the FORGEJO__SERVER__KEY=value form Forgejo's environment-to-ini expects
-    # from https://codeberg.org/forgejo/forgejo/src/branch/forgejo/contrib/environment-to-ini/environment-to-ini.go
-    DOMAIN="$domain" "$ENVSUBST_BIN" '$DOMAIN' < "$APP_INI_TEMPLATE" \
-      | sed -n 's/^\([A-Z_][A-Z0-9_]*\) = \(.*\)$/FORGEJO__SERVER__\1=\2/p' \
-      > "$output_file"
+    # Without both Turnstile keys, drop the [service] captcha overrides
+    # entirely: ENABLE_CAPTCHA=true with empty keys would break signup.
+    # Registration then falls back to manual admin approval alone.
+    if [ -z "$sitekey" ] || [ -z "$secret" ]; then
+      rendered=$(printf '%s\n' "$rendered" | grep -v '^FORGEJO__SERVICE__' || true)
+    fi
 
+    printf '%s\n' "$rendered" > "$output_file"
   else
     : > "$output_file"
   fi
-  
+
   chmod 600 "$output_file"
 }
 
