@@ -74,15 +74,7 @@ This configuration uses [sops-nix](https://github.com/Mic92/sops-nix) to keep th
 ### 8.1. Generate SSH keys for each of your Github accounts
 
 ```bash
-ACCOUNTS=(
-  "personal:personal@example.com"
-)
-for ACCOUNT in "${ACCOUNTS[@]}"; do
-  IFS=':' read -r KEYNAME EMAIL <<< "$ACCOUNT"
-  ssh-keygen -t ed25519 -C "$EMAIL" -f ~/.ssh/github.${KEYNAME}
-  echo "=== github.${KEYNAME} ==="
-  cat ~/.ssh/github.${KEYNAME}.pub
-done
+bash create-ssh.sh
 ```
 
 For each account, sign in to the corresponding GitHub account, go to
@@ -117,7 +109,15 @@ Configure `.sops.json` to use the public key.
 Encrypt `.secrets.json` in place:
 
 ```bash
-sops --encrypt --in-place .secrets.json
+sops --encrypt .secrets.yaml > .secrets.encrypted.yaml
+rm .secrets.yaml
+```
+
+The file can be later viewed or edited using:
+
+```bash
+export EDITOR=nano
+sudo sops .secrets.encrypted.yaml
 ```
 
 ## 9. Build and switch

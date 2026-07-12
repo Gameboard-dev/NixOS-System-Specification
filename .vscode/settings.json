@@ -7,8 +7,11 @@
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
     ".sops.example.yaml": ".sops.yaml",
-    ".secrets.example.json": ".secrets.json*",
-    ".secrets.json": ".secrets.encrypted.json*"
+    ".secrets.example.yaml": ".secrets.*",
+    "*.accounts.example.yaml": "*.accounts.yaml",
   },
+  "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
+  "nixEnvSelector.useFlakes": true,
+  "nixEnvSelector.flakeShell": "default",
 
 }

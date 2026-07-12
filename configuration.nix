@@ -1,5 +1,3 @@
-# System-level NixOS configuration. Values hostname, username, and stateVersion
-# are provided by the flake's specialArgs.
 { config, pkgs, lib, hostname, username, stateVersion, gitAccounts, ... }:
 let
   locale = "en_GB.UTF-8";
@@ -13,8 +11,10 @@ in
   networking.hostName = hostname;
   networking.networkmanager.enable = true;
 
+  # [TimeZone]
   time.timeZone = "Europe/London";
 
+  # [Language]
   i18n.defaultLocale = locale;
   i18n.extraLocaleSettings = lib.genAttrs [
     "LC_ADDRESS"
@@ -28,23 +28,20 @@ in
     "LC_TIME"
   ] (_: locale);
 
-  # Enable the X server as the graphical display system.
+  # [GUI Display]
   services.xserver.enable = true;
-  # Enable KDE Plasma 6 as the desktop environment.
+
+  # [Desktop (Plasma6 KDE)]
   services.desktopManager.plasma6.enable = true;
-  # Use SDDM as the login manager for KDE Plasma.
   services.displayManager.sddm.enable = true;
 
-  services.xserver.xkb = {
-    layout = "gb";
-    variant = "";
-  };
+  # [Keyboard Layout]
+  services.xserver.xkb = { layout = "gb"; variant = ""; };
   console.keyMap = "uk";
 
   services.printing.enable = true;
 
-  # [Audio/Video] PipeWire replaces PulseAudio and JACK.
-  # https://wiki.nixos.org/wiki/PipeWire
+  # [Audio/Video] https://wiki.nixos.org/wiki/PipeWire
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -62,21 +59,16 @@ in
 
   programs.firefox.enable = true;
 
-  # Enable safe experimental Nix features
-  # required for flakes and modern nix commands.
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  # Automatically clean up older configurations.
-  # - Remove NixOS builds weekly to free up disk space.
+  # Automatically clean up older configurations. Remove NixOS builds weekly to free up disk space.
   nix.gc = {
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 30d";
   };
 
-  # If free space in `/nix/store` drops below min-free mid-build
-  # Nix garbage-collects until max-free bytes are free
-  # or until no garbage is left to remove
+  # If free space in `/nix/store` drops below min-free mid-build Nix garbage-collects until max-free bytes are free or until no garbage is left to remove
   nix.settings.min-free = 128000000;
   nix.settings.max-free = 1000000000;
 
@@ -85,20 +77,20 @@ in
     vscodium
     proton-vpn
     git
+    jq
   ];
-
   system.stateVersion = stateVersion;
-
   sops = {
-    defaultSopsFormat = "json";
     age.keyFile = "/root/.config/sops/age/keys.txt";
-    secrets = builtins.listToAttrs (lib.concatMap (a: [
-      { name = a.nameSecret; value = { }; }
-      { name = a.emailSecret; value = { }; }
-    ]) gitAccounts);
+    # key = "" means "do not extract a single value; decrypt the whole document".
+    secrets."secrets" = {
+      sopsFile = ./.secrets.encrypted.yaml;
+      format = "yaml";
+      key = "";
+      path = "/run/secrets/secrets.yaml";
+      owner = username;
+      mode = "0400";
+    };
   };
-
-
-
 
 }

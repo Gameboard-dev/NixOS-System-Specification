@@ -1,8 +1,5 @@
-*hardware-configuration
-
-*sops*
-!*sops*.example.*
-
 *secrets*
 !*secrets*.example.*
 !*secrets*.encrypted.*
+!*render-secrets.sh
+#ssh-accounts.json
