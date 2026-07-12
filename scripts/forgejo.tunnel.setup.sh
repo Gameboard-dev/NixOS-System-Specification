@@ -55,26 +55,31 @@ ini_to_env() {
 render_env() {
   local output_file="$1"
   local secrets_file="${SECRETS_FILE:-/run/secrets/secrets.yaml}"
-  local domain sitekey secret rendered
+  local domain sitekey secret registration_disabled captcha_enabled
   domain=$(read_secret '.forgejo.domain' "$secrets_file")
   sitekey=$(read_secret '.forgejo."turnstile-sitekey"' "$secrets_file")
   secret=$(read_secret '.forgejo."turnstile-secret"' "$secrets_file")
 
+  # Public registration is enabled if and only if both Turnstile keys are
+  # set, so signup is never open without bot protection. With the CAPTCHA
+  # disabled, Forgejo ignores the empty CF_TURNSTILE_* values.
+  if [ -n "$sitekey" ] && [ -n "$secret" ]; then
+    registration_disabled=false
+    captcha_enabled=true
+  else
+    registration_disabled=true
+    captcha_enabled=false
+    echo "turnstile-sitekey / turnstile-secret not set in secrets; public registration disabled."
+  fi
+
   if [ -n "$domain" ]; then
-    rendered=$(
-      DOMAIN="$domain" TURNSTILE_SITEKEY="$sitekey" TURNSTILE_SECRET="$secret" \
-        "$ENVSUBST_BIN" '$DOMAIN $TURNSTILE_SITEKEY $TURNSTILE_SECRET' \
-        < "$APP_INI_TEMPLATE" | ini_to_env
-    )
-
-    # Without both Turnstile keys, drop the [service] captcha overrides
-    # entirely: ENABLE_CAPTCHA=true with empty keys would break signup.
-    # Registration then falls back to manual admin approval alone.
-    if [ -z "$sitekey" ] || [ -z "$secret" ]; then
-      rendered=$(printf '%s\n' "$rendered" | grep -v '^FORGEJO__SERVICE__' || true)
-    fi
-
-    printf '%s\n' "$rendered" > "$output_file"
+    DOMAIN="$domain" \
+    TURNSTILE_SITEKEY="$sitekey" \
+    TURNSTILE_SECRET="$secret" \
+    DISABLE_REGISTRATION="$registration_disabled" \
+    ENABLE_CAPTCHA="$captcha_enabled" \
+      "$ENVSUBST_BIN" '$DOMAIN $TURNSTILE_SITEKEY $TURNSTILE_SECRET $DISABLE_REGISTRATION $ENABLE_CAPTCHA' \
+      < "$APP_INI_TEMPLATE" | ini_to_env > "$output_file"
   else
     : > "$output_file"
   fi

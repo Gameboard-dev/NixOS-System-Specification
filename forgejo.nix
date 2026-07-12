@@ -28,7 +28,6 @@ in
     # Keys below map 1:1 onto Forgejo's app.ini and are documented
     # here: https://forgejo.org/docs/latest/admin/config-cheat-sheet/
     settings = {
-
       server = {
         HTTP_ADDR = "127.0.0.1";
         HTTP_PORT = httpPort;
@@ -41,14 +40,15 @@ in
       security.MIN_PASSWORD_LENGTH = 16;
       
       service = {
-        # Public signup is open, but protected twice over:
-        #  1. Cloudflare Turnstile CAPTCHA blocks bots (configured via the
-        #     turnstile-* secrets; see templates/forgejo/app.ini).
-        #  2. REGISTER_MANUAL_CONFIRM keeps every new account inactive until
-        #     an admin approves it (Site Administration -> Identity & Access).
+        # When a domain is configured, the render step overrides this at runtime --
+        # registration is open if and only if both turnstile-* secrets are set, 
+        # so public signup is never open without the Turnstile CAPTCHA 
+        # (see templates/forgejo/app.ini).
         DISABLE_REGISTRATION = false;
+        # REGISTER_MANUAL_CONFIRM keeps every new account inactive until
+        # an admin approves it (Site Administration -> Identity & Access).
         REGISTER_MANUAL_CONFIRM = true;
-        # Whether to hide the email address in user profiles by default.
+        # Whether to hide the user email address by default.
         DEFAULT_KEEP_EMAIL_PRIVATE = true;
       };
 
