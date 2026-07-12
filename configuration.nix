@@ -1,47 +1,42 @@
-{ config, pkgs, lib, hostname, username, stateVersion, gitAccounts, ... }:
+{ pkgs, lib, hostname, username, stateVersion, ... }:
+
 let
   locale = "en_GB.UTF-8";
 in
+
 {
   imports = [ ./hardware-configuration.nix ];
 
+  # Boot loader configuration.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Network and hostname.
   networking.hostName = hostname;
   networking.networkmanager.enable = true;
 
-  # [TimeZone]
+  # Localization.
   time.timeZone = "Europe/London";
-
-  # [Language]
   i18n.defaultLocale = locale;
   i18n.extraLocaleSettings = lib.genAttrs [
-    "LC_ADDRESS"
-    "LC_IDENTIFICATION"
-    "LC_MEASUREMENT"
-    "LC_MONETARY"
-    "LC_NAME"
-    "LC_NUMERIC"
-    "LC_PAPER"
-    "LC_TELEPHONE"
-    "LC_TIME"
+    "LC_ADDRESS" "LC_IDENTIFICATION" "LC_MEASUREMENT" "LC_MONETARY"
+    "LC_NAME" "LC_NUMERIC" "LC_PAPER" "LC_TELEPHONE" "LC_TIME"
   ] (_: locale);
 
-  # [GUI Display]
+  # Display server and desktop environment.
   services.xserver.enable = true;
-
-  # [Desktop (Plasma6 KDE)]
   services.desktopManager.plasma6.enable = true;
   services.displayManager.sddm.enable = true;
 
-  # [Keyboard Layout]
+  # Keyboard layout.
   services.xserver.xkb = { layout = "gb"; variant = ""; };
   console.keyMap = "uk";
 
+  # Printing support.
   services.printing.enable = true;
 
-  # [Audio/Video] https://wiki.nixos.org/wiki/PipeWire
+  # Audio: PipeWire replaces PulseAudio and JACK.
+  # https://wiki.nixos.org/wiki/PipeWire
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -51,46 +46,50 @@ in
     pulse.enable = true;
   };
 
+  # User account.
   users.users.${username} = {
     isNormalUser = true;
     description = username;
     extraGroups = [ "networkmanager" "wheel" ];
   };
 
+  # Default packages.
   programs.firefox.enable = true;
-
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  # Automatically clean up older configurations. Remove NixOS builds weekly to free up disk space.
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
-
-  # If free space in `/nix/store` drops below min-free mid-build Nix garbage-collects until max-free bytes are free or until no garbage is left to remove
-  nix.settings.min-free = 128000000;
-  nix.settings.max-free = 1000000000;
-
-  # https://search.nixos.org/packages
   environment.systemPackages = with pkgs; [
     vscodium
     proton-vpn
     git
     jq
   ];
-  system.stateVersion = stateVersion;
+
+  # Nix configuration.
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+  nix.settings.min-free = 128000000;
+  nix.settings.max-free = 1000000000;
+
+  # Secrets management via SOPS.
+  # Decrypts the entire secrets file at activation time: Empty key means decrypt the entire file as one blob.
+  # The age private key at keyFile is used only on this machine. Never committed.
   sops = {
     age.keyFile = "/root/.config/sops/age/keys.txt";
-    # key = "" means "do not extract a single value; decrypt the whole document".
     secrets."secrets" = {
       sopsFile = ./.secrets.encrypted.yaml;
       format = "yaml";
-      key = "";
+      key = "";  
       path = "/run/secrets/secrets.yaml";
       owner = username;
       mode = "0400";
     };
   };
 
+  # System state version: do not change.
+  system.stateVersion = stateVersion;
+
+  # Requires for Claude Code in VS Code (home.nix)
+  nixpkgs.config.allowUnfree = true;
 }

@@ -1,4 +1,4 @@
-{ pkgs, lib, stateVersion, username, ... }:
+{ pkgs, lib, stateVersion, ... }:
 {
   home.stateVersion = stateVersion;
   # [VSCodium Extensions]
@@ -6,9 +6,12 @@
     enable = true;
     profiles.default.extensions = with pkgs.vscode-extensions; [
       jnoortheen.nix-ide
+      anthropic.claude-code
     ];
   };
-  home.packages = [ pkgs.nixd ];
+  home.packages = with pkgs; [
+    nixd
+  ];
   # [renderGitProfiles]
   # Renders ~/.ssh/config, ~/.gitconfig and per-account git identity fragments
   # from the sops-decrypted /run/secrets/secrets.yaml at every activation.
@@ -20,8 +23,7 @@
   # Declaratively configure KDE Plasma user desktop using Nix.
   programs.plasma = {
       enable = true;
-      # [Panels]
-      # https://github.com/nix-community/plasma-manager/blob/trunk/modules/panels.nix
+      # [Panels] https://github.com/nix-community/plasma-manager/blob/trunk/modules/panels.nix
       panels = [
         {
           location = "bottom";

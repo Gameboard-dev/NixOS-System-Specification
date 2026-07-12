@@ -1,6 +1,4 @@
-# Nix flakes provide reproducible Nix expressions whose dependencies are pinned
-# in the committed flake.lock. This flake declares a complete NixOS system
-# configuration that can be tested and applied using nixos-rebuild.
+# This flake declares a complete NixOS system configuration.
 # https://nixos.wiki/wiki/Flakes
 #
 # Testing and deployment:
@@ -15,27 +13,32 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils";
+
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
-      #  Ensure flake inputs use the same nixpkgs to avoid dependency conflicts.
+      #  Ensure flake inputs use the same version to avoid dependency conflicts.
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
     plasma-manager = {
       url = "github:nix-community/plasma-manager/trunk";
-      # Ensure flake inputs use the same nixpkgs and home-manager versions to avoid dependency conflicts.
+      #  Ensure flake inputs use the same version to avoid dependency conflicts.
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
+
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-  outputs = { self, nixpkgs, home-manager, plasma-manager, sops-nix, ... }:
+  outputs = { nixpkgs, home-manager, plasma-manager, sops-nix, ... }:
     let
       hostname = "nixos";
       username = "megatron";
       stateVersion = "26.05";
+
+      # Extract system from hardware configuration to support multiple architectures.
       hardwareConfig = import ./hardware-configuration.nix;
       system = hardwareConfig.nixpkgs.hostPlatform;
       pkgs = nixpkgs.legacyPackages.${system};
@@ -56,6 +59,7 @@
           }
         ];
       };
+
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [ age sops ];
       };

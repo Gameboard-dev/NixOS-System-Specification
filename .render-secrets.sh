@@ -21,10 +21,10 @@ mkdir -p "$HOME/.ssh" "$PROFILE_DIR"
 
 query() { "$YQ" e "$1" "$SECRETS"; }
 
-for ALIAS in $(query '.git | keys | .[]'); do
-	NAME=$(query ".git.\"$ALIAS\".name")
-	EMAIL=$(query ".git.\"$ALIAS\".email")
-	SSH_KEY=$(query ".git.\"$ALIAS\".\"ssh-key\"")
+for ALIAS in $(query '.profiles.git | keys | .[]'); do
+	NAME=$(query ".profiles.git.\"$ALIAS\".name")
+	EMAIL=$(query ".profiles.git.\"$ALIAS\".email")
+	SSH_KEY=$(query ".profiles.git.\"$ALIAS\".\"ssh-key\"")
 	PROFILE="$PROFILE_DIR/$ALIAS"
 
 	cat >> "$SSH_CONFIG" <<-YML
@@ -32,6 +32,7 @@ for ALIAS in $(query '.git | keys | .[]'); do
 		  HostName github.com
 		  User git
 		  IdentityFile $SSH_KEY
+
 	YML
 
 	cat > "$PROFILE" <<-INI
@@ -42,14 +43,12 @@ for ALIAS in $(query '.git | keys | .[]'); do
 
 	while IFS= read -r DIR; do
 		EXPANDED="${DIR/#\~/$HOME}"
-
 		cat >> "$GIT_CONFIG" <<-INI
 			[includeIf "gitdir:$EXPANDED/"]
 			  path = $PROFILE
-		INI
 
-	done < <(query ".git.\"$ALIAS\".directories[]")
-  
+		INI
+	done < <(query ".profiles.git.\"$ALIAS\".directories[]")
 done
 
 chmod 600 "$SSH_CONFIG"

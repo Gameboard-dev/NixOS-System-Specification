@@ -3,6 +3,7 @@
   },
   "files.exclude": {
     "**/.git": false,
+    ".secrets.encrypted.*": true,
   },
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
@@ -10,8 +11,21 @@
     ".secrets.example.yaml": ".secrets.*",
     "*.accounts.example.yaml": "*.accounts.yaml",
   },
-  "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
-  "nixEnvSelector.useFlakes": true,
-  "nixEnvSelector.flakeShell": "default",
-
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "nixd",
+  "nix.serverSettings": {
+    "nixd": {
+      "formatting": {
+        "command": ["nixfmt"]
+      },
+      "options": {
+        "nixos": {
+          "expr": "(builtins.getFlake \"${workspaceFolder}\").nixosConfigurations.nixos.options"
+        },
+        "home-manager": {
+          "expr": "(builtins.getFlake \"${workspaceFolder}\").nixosConfigurations.nixos.options.home-manager.users.type.getSubOptions []"
+        }
+      }
+    }
+  }
 }
