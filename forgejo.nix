@@ -17,6 +17,8 @@ in
     
     # Whether to enable periodic dumps via the built-in `forgejo dump` command.
     # The 'age' parameter determines how old a file needs to be, to qualify for deletion.
+    # Whatever threat takes out the machine takes the backups with it; an off-machine copy 
+    # (via rsync) is recommended.
     dump = {
       enable = true;
       type = "tar.zst";
@@ -26,6 +28,7 @@ in
     # Keys below map 1:1 onto Forgejo's app.ini and are documented
     # here: https://forgejo.org/docs/latest/admin/config-cheat-sheet/
     settings = {
+
       server = {
         HTTP_ADDR = "127.0.0.1";
         HTTP_PORT = httpPort;

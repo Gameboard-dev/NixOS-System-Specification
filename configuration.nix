@@ -73,6 +73,8 @@ in
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_17;
+    # When enableTCPIP is disabled, Postgres has no network listener at all, 
+    # only the Unix socket. There is nothing to firewall, scan, or brute-force.
     enableTCPIP = false;
     authentication = lib.mkForce (builtins.readFile ./templates/postgresql/pg_hba.conf);
   };
