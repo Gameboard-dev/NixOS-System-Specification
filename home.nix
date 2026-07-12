@@ -12,12 +12,16 @@
     ];
   };
 
-  # CLI tooling for the configured user only. 
+  # CLI tooling for the configured user only.
   # System-wide packages belong in configuration.nix.
   home.packages = with pkgs; [
-    nixd     
+    nixd
     nodejs
     curl
+    # Privacy-focused Discord client from the Vencord project:
+    # Strips Discord's telemetry/tracking, and has proper Linux
+    # screenshare + Wayland support. https://github.com/Vencord/Vesktop
+    vesktop
   ];
 
   # Renders ~/.ssh/config, ~/.gitconfig, and per-account identity fragments
