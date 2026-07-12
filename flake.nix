@@ -10,19 +10,19 @@
 #   sudo nix-collect-garbage --delete-older-than 30d
 {
   description = "NixOS System Specification";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    flake-utils.url = "github:numtide/flake-utils";
-
+    # Each input below is a flake that pins its own copy of <package>.
+    # 'follows' overrides that pin, forcing the input to use the same URL
+    # as our definition for the flake (e.g. "home-manager")
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
-      #  Ensure flake inputs use the same version to avoid dependency conflicts.
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     plasma-manager = {
       url = "github:nix-community/plasma-manager/trunk";
-      #  Ensure flake inputs use the same version to avoid dependency conflicts.
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
@@ -32,20 +32,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-  outputs = { nixpkgs, home-manager, plasma-manager, sops-nix, ... }:
+
+  outputs = { self, nixpkgs, home-manager, plasma-manager, sops-nix, ... }:
     let
       hostname = "nixos";
       username = "megatron";
       stateVersion = "26.05";
-
-      # Extract system from hardware configuration to support multiple architectures.
-      hardwareConfig = import ./hardware-configuration.nix;
-      system = hardwareConfig.nixpkgs.hostPlatform;
-      pkgs = nixpkgs.legacyPackages.${system};
     in
     {
       nixosConfigurations.${hostname} = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit hostname username stateVersion; };
+
         modules = [
           ./configuration.nix
           sops-nix.nixosModules.sops
@@ -60,8 +57,17 @@
         ];
       };
 
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [ age sops ];
-      };
+      # Running `nix develop` in this directory drops you into a 
+      # development shell where the secrets tools (age, sops)
+      # are on PATH, without installing them system-wide.
+      devShells =
+        # Flakes require dev shells to be declared per architecture, 
+        # specified in `hardware-configuration.nix`.
+        let pkgs = self.nixosConfigurations.${hostname}.pkgs; in
+        {
+          ${pkgs.stdenv.hostPlatform.system}.default = pkgs.mkShell {
+            buildInputs = with pkgs; [ age sops ];
+          };
+        };
     };
 }

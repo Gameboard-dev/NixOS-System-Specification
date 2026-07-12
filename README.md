@@ -56,7 +56,56 @@ sudo nixos-generate-config --show-hardware-config > /etc/nixos/hardware-configur
 
 This inspects your disks, filesystems, and hardware and writes a `hardware-configuration.nix` tailored to your machine - including the architecture (`nixpkgs.hostPlatform`), which the flake reads automatically.
 
-This configuration is for `x86_64-linux.` If installing on a different architecture, update system in `flake.nix`.
+
+### Forgejo
+
+`forgejo.nix` runs a [Forgejo](https://forgejo.org/) git forge backed by the local PostgreSQL (Unix socket, peer auth - no database password exists). Nightly `forgejo dump` backups land in `/var/lib/forgejo/dump`. 
+
+The web UI and git SSH are only reachable through an outbound-only Cloudflare Tunnel. Nothing listens beyond loopback and no inbound ports are opened.
+
+This also ensures compatibility with WAN networks since the host machine sets up 
+the outbound connection.
+
+The public domain and tunnel ID are not in the repo: they live in the encrypted secrets file under `forgejo:` (in `.secrets.example.yaml`) and are read at service start from the decrypted `/run/secrets/secrets.yaml`. While they are empty, the system still builds and Forgejo runs on loopback/localhost - the tunnel is simply skipped.
+
+To set up the tunnel:
+
+1. Set `forgejo.domain` in the secrets file (`sudo sops .secrets.encrypted.yaml`), then rebuild so `/run/secrets/secrets.yaml` refreshes. The web UI lives at that domain; git SSH uses `ssh.<domain>`.
+
+2. Run the setup script - it logs in to Cloudflare, creates the tunnel, routes DNS for both hostnames, and installs the credentials at `/etc/cloudflared/forgejo-tunnel.json`:
+
+```bash
+bash scripts/cloudflared.setup.sh
+```
+
+3. Store the tunnel ID it prints as `forgejo.tunnel-id` in the secrets file, and rebuild again.
+
+**First admin account** - registration is disabled, so create it from the CLI:
+
+```bash
+sudo -u forgejo env FORGEJO_WORK_DIR=/var/lib/forgejo \
+  forgejo admin user create --admin --username <name> \
+  --email <email> --random-password
+```
+
+```bash
+sudo -u forgejo env FORGEJO_WORK_DIR=/var/lib/forgejo \
+  forgejo admin user create \
+  --admin \
+  --username Walainski \
+  --email js5859133@gmail.com \
+  --password "h8B"
+```
+
+**Cloning over SSH** - git traffic rides the tunnel too, so clients need `cloudflared` installed locally and this in `~/.ssh/config`:
+
+```ini
+Host ssh.forgejo.example.com
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+Add your SSH public key in the Forgejo web UI as usual; 
+the host's OpenSSH handles git connections (key-only, no passwords).
 
 ## 7. Update `flake.nix` for your setup
 
@@ -66,6 +115,19 @@ Open `flake.nix` and adjust the `hostname` and `username` values in the `let` bl
 hostname = "nixos";
 username = "megatron";
 ```
+
+### Trusted Platform Module (TPM) Disk Decryption
+
+Only relevant if you have a TPM chip and chose disk encryption during installation ([step 4](#4-install-nixos)). With TPM2, your disks unlock automatically at boot without a password.
+
+```bash
+bash scripts/tpm.enroll.sh
+```
+
+This lists every LUKS partition it finds, asks for confirmation, then prompts for your existing LUKS passphrase to enroll each one. On machines without a TPM it exits harmlessly without changing anything.
+
+The password stays enrolled as a fallback, so this is safe to set up: if unsealing fails (e.g. after a firmware update), you are simply prompted for it as before.
+
 
 ## 8. SSH Key Persistence for Github
 
@@ -85,35 +147,21 @@ public key. Private keys (`github_personal`, `github_work`, without the
 ### 8.2. Generate an Encryption Key with SOPS:
 
 ```bash
-nix flake update
-nix develop
 sudo mkdir -p /root/.config/sops/age
+nix develop # age + sops
 sudo age-keygen -o /root/.config/sops/age/keys.txt
 ```
 
-Configure `.sops.json` to use the public key.
-
-```json
-{
-  "creation_rules": [
-    {
-      "path_regex": ".secrets\\.json$",
-      "age": [
-        "age1qy...your-public-key"
-      ]
-    }
-  ]
-}
-```
-
-Encrypt `.secrets.json` in place:
+Configure `.sops.yaml` to use the public key
+and encrypt `.secrets.json` in place.
 
 ```bash
+nix develop # sops + age
 sops --encrypt .secrets.yaml > .secrets.encrypted.yaml
 rm .secrets.yaml
 ```
 
-The file can be later viewed or edited using:
+The file can be viewed or edited using:
 
 ```bash
 export EDITOR=nano

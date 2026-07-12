@@ -1,5 +1,6 @@
 *secrets*
 !*secrets*.example.*
 !*secrets*.encrypted.*
-!*render-secrets.sh
+!*secrets.sh
 #ssh-accounts.json
+.claude

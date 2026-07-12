@@ -1,9 +1,11 @@
 {
   "files.associations": {
+    "*.conf": "properties",
+    "*.ini": "properties"
   },
   "files.exclude": {
     "**/.git": false,
-    ".secrets.encrypted.*": true,
+    ".secrets.encrypted.*": false,
   },
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
@@ -27,5 +29,7 @@
         }
       }
     }
-  }
+  },
+  "editor.fontFamily": "Fira Code, Consolas, 'Courier New', monospace",
+  "editor.fontSize": 15
 }

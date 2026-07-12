@@ -1,0 +1,13 @@
+# Cloudflare Tunnel configuration for Forgejo
+# See: https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/
+tunnel: ${TUNNEL_ID}
+credentials-file: ${TUNNEL_CREDS}
+ingress:
+  # Forgejo Web UI (HTTP)
+  - hostname: ${DOMAIN}
+    service: http://127.0.0.1:${HTTP_PORT}
+  # OpenSSH (cloudflared + git ssh)
+  - hostname: ssh.${DOMAIN}
+    service: ssh://127.0.0.1:22
+  # Everything Else (404)
+  - service: http_status:404
