@@ -40,7 +40,15 @@ Log in to your new NixOS system, connect to the internet, and clone this reposit
 
 ```bash
 sudo rm -rf /etc/nixos
-sudo git clone <this-repository-url> /etc/nixos
+sudo nix \
+  --extra-experimental-features nix-command \
+  --extra-experimental-features flakes \
+  run nixpkgs#git \
+  -- clone \
+    https://github.com/Gameboard-dev/NixOS-System-Specification.git \
+    /etc/nixos
+```
+
 cd /etc/nixos
 ```
 
