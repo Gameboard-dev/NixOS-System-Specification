@@ -149,13 +149,31 @@ This configuration uses [sops-nix](https://github.com/Mic92/sops-nix) to keep th
 ### 8.1. Generate SSH keys for each of your Github accounts
 
 ```bash
-bash create-ssh.sh
-```
+ssh-keygen -t ed25519 -C "example@email.com" -f ~/.ssh/github.example -N ""
+cat ~/.ssh/github.example.pub # Add to https://github.com/settings/keys
+ssh-keygen -p -f ~/.ssh/github.example # Add a password
 
 For each account, sign in to the corresponding GitHub account, go to
 **Settings → SSH and GPG keys → New SSH key**, and paste in the matching
 public key. Private keys (`github_personal`, `github_work`, without the
 `.pub` suffix) stay on the machine and must never be committed.
+
+Persist SSH password authentication by
+adding the following to your `~/.bashrc` file:
+
+```bash
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval "$(ssh-agent -s)" > /dev/null
+fi
+
+ssh-add ~/.ssh/github.example 2>/dev/null
+```
+
+Then reload:
+
+```bash
+source ~/.bashrc
+```
 
 ### 8.2. Generate an Encryption Key with SOPS:
 
