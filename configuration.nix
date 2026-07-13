@@ -1,9 +1,7 @@
 { pkgs, lib, hostname, username, stateVersion, ... }:
-
 let
   locale = "en_GB.UTF-8";
 in
-
 {
   imports = [ ./hardware-configuration.nix ./forgejo.nix ];
 
@@ -73,10 +71,23 @@ in
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_17;
-    # When enableTCPIP is disabled, Postgres has no network listener at all, 
+    # When enableTCPIP is disabled, Postgres has no network listener at all,
     # only the Unix socket. There is nothing to firewall, scan, or brute-force.
     enableTCPIP = false;
     authentication = lib.mkForce (builtins.readFile ./templates/postgresql/pg_hba.conf);
+  };
+
+  # Provides the Docker-compatible API socket in /run/podman/podman.sock
+  # gated by the "podman" group andused by the Forgejo Actions runner (forgejo.nix) 
+  # to launch CI job containers (actions) for repositories.
+  # [What Is Podman](https://docs.podman.io/en/latest/)
+  # [Configuration Options](https://github.com/NixOS/nixpkgs/blob/8f0500b9660505dc3cb647775fe9a978a74b5283/nixos/modules/virtualisation/podman/default.nix#L69)
+  virtualisation.podman = {
+    enable = true;
+    autoPrune = {
+      enable = true;
+      dates = "weekly";
+    };
   };
 
   programs.firefox.enable = true;
@@ -87,6 +98,7 @@ in
     yq-go # YAML
     cloudflared 
     nixfmt
+
   ];
 
   # Enable experimental features needed for the Flake to work.

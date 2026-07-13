@@ -98,6 +98,20 @@ Host ssh.forgejo.example.com
 Add your SSH public key in the Forgejo web UI as usual; 
 the host's OpenSSH handles git connections (key-only, no passwords).
 
+
+### Forgejo Podman Setup (for Git Actions / Continuous Integration)
+
+The configuration in `forgejo.nix` excludes Git actions 
+until both forgejo.domain and forgejo.runner-token 
+are set in `.secrets.encrypted.yaml`.
+
+Create the token in `Site Administration -> Actions -> Runners`, or with:
+
+```bash
+sudo -u forgejo env FORGEJO_WORK_DIR=/var/lib/forgejo \
+  forgejo actions generate-runner-token
+```
+
 ## 7. Update `flake.nix` for your setup
 
 Open `flake.nix` and adjust the `hostname` and `username` values in the `let` block to match how you wish to appear on the network, and your login username:

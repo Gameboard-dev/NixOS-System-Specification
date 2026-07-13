@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Single entry point for Forgejo's Cloudflare Tunnel.
+# Single entry point for Forgejo's secrets-driven services (tunnel, runner).
 #
 # Subcommands:
 #   env <output-file>  Render Forgejo's public-hostname overrides from the
@@ -13,6 +13,9 @@ set -euo pipefail
 #   run                Render the tunnel config and exec cloudflared.
 #                      Main process of cloudflared-forgejo.service.
 #
+#   runner             Register (idempotently) and exec the Forgejo Actions
+#                      runner. Main process of forgejo-runner.service.
+#
 # The following arguments must be provided:
 # ------------------------------------------------------------------------------------
 #   YQ_BIN, ENVSUBST_BIN                        tool paths (default to PATH lookups)
@@ -21,6 +24,9 @@ set -euo pipefail
 #   SECRETS_FILE                                sops secrets file (`env` only)
 #   CLOUDFLARED_BIN, FORGEJO_HTTP_PORT,
 #   CREDENTIALS_DIRECTORY, RUNTIME_DIRECTORY    (`run` only, via systemd)
+#   RUNNER_BIN, RUNNER_CONFIG, RUNNER_NAME,
+#   RUNNER_LABELS, STATE_DIRECTORY,
+#   CREDENTIALS_DIRECTORY                       (`runner` only, via systemd)
 # ------------------------------------------------------------------------------------
 
 YQ_BIN="${YQ_BIN:-yq}"
@@ -109,11 +115,48 @@ run_tunnel() {
   exec "${CLOUDFLARED_BIN:-cloudflared}" tunnel --no-autoupdate --config "$config_file" run
 }
 
+# Registers this machine as an Actions runner (skipping if the registration
+# is already current), then execs the long-lived runner daemon. Job
+# containers reach Forgejo via the public domain through the tunnel, so both
+# the domain and runner-token secrets must be set.
+run_runner() {
+  local secrets_file="${CREDENTIALS_DIRECTORY}/secrets.yaml"
+  local domain token
+  domain=$(read_secret '.forgejo.domain' "$secrets_file")
+  token=$(read_secret '.forgejo."runner-token"' "$secrets_file")
+
+  if [ -z "$domain" ] || [ -z "$token" ]; then
+    echo "forgejo.domain / forgejo.runner-token not set in secrets; not starting the runner."
+    exit 0
+  fi
+
+  cd "$STATE_DIRECTORY"
+
+  # Re-register when the instance URL, token or labels change, mirroring the
+  # hash-stamp approach of nixpkgs' gitea-actions-runner module.
+  local stamp_file=".registration" stamp
+  stamp=$(printf '%s|%s|%s' "https://$domain" "$token" "$RUNNER_LABELS" | sha256sum | cut -d' ' -f1)
+
+  if [ ! -e .runner ] || [ "$(cat "$stamp_file" 2>/dev/null)" != "$stamp" ]; then
+    rm -f .runner
+    "$RUNNER_BIN" register --no-interactive \
+      --instance "https://$domain" \
+      --token "$token" \
+      --name "$RUNNER_NAME" \
+      --labels "$RUNNER_LABELS" \
+      --config "$RUNNER_CONFIG"
+    printf '%s' "$stamp" > "$stamp_file"
+  fi
+
+  exec "$RUNNER_BIN" daemon --config "$RUNNER_CONFIG"
+}
+
 case "${1:-}" in
   env) render_env "$2" ;;
   run) run_tunnel ;;
+  runner) run_runner ;;
   *)
-    echo "usage: $0 {env <output-file>|run}" >&2
+    echo "usage: $0 {env <output-file>|run|runner}" >&2
     exit 64
     ;;
 esac

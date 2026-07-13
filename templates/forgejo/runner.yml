@@ -1,0 +1,20 @@
+# Forgejo Actions runner daemon config (static; referenced directly from the
+# nix store by the forgejo-runner systemd unit -- no rendering needed).
+# All keys and defaults are documented in the upstream example:
+# https://code.forgejo.org/forgejo/runner/src/branch/main/internal/pkg/config/config.example.yaml
+
+log:
+  level: info
+
+runner:
+  file: .runner
+  capacity: 1
+  timeout: 3h
+
+container:
+  network: bridge
+  privileged: false
+  docker_host: "-"
+
+cache:
+  enabled: true

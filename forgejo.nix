@@ -17,8 +17,8 @@ in
     
     # Whether to enable periodic dumps via the built-in `forgejo dump` command.
     # The 'age' parameter determines how old a file needs to be, to qualify for deletion.
-    # Whatever threat takes out the machine takes the backups with it; an off-machine copy 
-    # (via rsync) is recommended.
+    # Whatever threat takes out the machine takes the backups with it; 
+    # An off-machine copy (via rsync) should periodically be made.
     dump = {
       enable = true;
       type = "tar.zst";
@@ -65,8 +65,13 @@ in
       # Disables code search for multiple repositories to save on disk space.
       indexer.REPO_INDEXER_ENABLED = false;
 
-      # The Forgejo running version is pinned by nixpkgs, and should not be managed by Forgejo's own update daemon.
+      # The Forgejo running version is pinned by nixpkgs, 
+      # it should NOT be managed by Forgejo's own update daemon.
       "cron.update_checker".ENABLED = false;
+
+      # Forgejo Actions (CI/CD)
+      # https://forgejo.org/docs/latest/admin/actions/
+      actions.ENABLED = true;
     };
   };
 
@@ -80,7 +85,7 @@ in
       SECRETS_FILE = secretsFile;
     };
     serviceConfig = {
-      # The tunnel.setup script is a single entry point with two subcommands,
+      # The script 'forgejo.tunnel.setup.sh' is a single entry point with two subcommands,
       # The ExecStartPre command here executes briefly before Forgejo starts, 
       # renders the FORGEJO__SERVER__* overrides from the secrets file 
       # into domain.env, and exits. mkBefore ensures our render is the FIRST ExecStartPre, 
@@ -124,6 +129,45 @@ in
     # Otherwise writes an empty file Forgejo falls back to localhost if the tunnel is not set up.
     script = "exec ${pkgs.bash}/bin/bash ${./scripts/forgejo.tunnel.setup.sh} run";
   };
+  # Forgejo Actions runner: executes CI jobs inside podman containers on the
+  # isolated bridge network -- jobs reach Forgejo only via the public domain,
+  # and never see the host's network namespace or the podman socket
+  systemd.services.forgejo-runner = {
+    description = "Forgejo Actions Runner";
+    wantedBy = [ "multi-user.target" ];
+    wants = [ "network-online.target" ];
+    # Registration and job traffic go through the public domain, 
+    # so Forgejo and the tunnel should be active/available.
+    after = [
+      "network-online.target"
+      "podman.socket"
+      "forgejo.service"
+      "cloudflared-forgejo.service"
+    ];
+    unitConfig.ConditionPathExists = [ secretsFile ];
+    serviceConfig = {
+      DynamicUser = true;
+      LoadCredential = [ "secrets.yaml:${secretsFile}" ];
+      # Persists the runner registration (.runner) and build cache across
+      # restarts at /var/lib/forgejo-runner.
+      StateDirectory = "forgejo-runner";
+      # Grants access to /run/podman/podman.sock (socket group "podman").
+      SupplementaryGroups = [ "podman" ];
+      Restart = "on-failure";
+      RestartSec = "5s";
+    };
+    environment = {
+      # The runner daemon talks to rootful podman over its Docker-compatible API socket
+      DOCKER_HOST = "unix:///run/podman/podman.sock";
+      HOME = "/var/lib/forgejo-runner";
+      YQ_BIN = "${pkgs.yq-go}/bin/yq";
+      RUNNER_BIN = "${pkgs.forgejo-runner}/bin/forgejo-runner";
+      RUNNER_CONFIG = "${./templates/forgejo/runner.yml}";
+      RUNNER_NAME = "${config.networking.hostName}-runner";
+      RUNNER_LABELS = "docker:docker://node:20-bookworm";
+    };
+    script = "exec ${pkgs.bash}/bin/bash ${./scripts/forgejo.tunnel.setup.sh} runner";
+  };
   # Puts Forgejo CLI on PATH.
-  environment.systemPackages = [ config.services.forgejo.package ]; 
+  environment.systemPackages = [ config.services.forgejo.package ];
 }
